@@ -3,3 +3,5 @@ edge-tts
 moviepy
 imageio-ffmpeg
 proglog
+requests
+pillow
