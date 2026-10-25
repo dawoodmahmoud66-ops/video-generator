@@ -16,24 +16,33 @@ except ImportError:
 st.set_page_config(page_title="المخرج السينمائي الذكي", page_icon="🎬", layout="wide")
 
 st.title("🎬 صانع المسلسلات: تحريك الشخصيات وتأثيرات الكاميرا")
-st.write("تم إضافة الحركة الديناميكية للشخصيات وتحسين مطابقة الصور المرفوعة تلقائياً!")
+st.write("تم إضافة خيار دقة 360p لتوفير أعلى سرعة معالجة وأقل استهلاك للذاكرة!")
 
 col1, col2 = st.columns([2, 1])
 
 with col2:
     st.header("⚙️ إعدادات الإنتاج")
     
+    # إضافة خيار 360p هنا
     resolution_option = st.selectbox(
         "🎯 اختر دقة الفيديو قبل الإنشاء:",
-        options=["480p (سريع جداً وخفيف)", "720p (سريع وموصى به)", "1080p (دقة عالية)"]
+        options=[
+            "360p (فائق السرعة وخفيف جداً)", 
+            "480p (سريع وخفيف)", 
+            "720p (سريع وموصى به)", 
+            "1080p (دقة عالية)"
+        ]
     )
     
+    # تحديد أبعاد الشاشة حسب اختيار الدقة
     if "1080p" in resolution_option:
         target_h, target_w = 1080, 608
     elif "720p" in resolution_option:
         target_h, target_w = 720, 405
-    else:
+    elif "480p" in resolution_option:
         target_h, target_w = 480, 270
+    else:  # 360p
+        target_h, target_w = 360, 202
 
     st.divider()
     st.header("📸 صور الشخصيات")
@@ -43,7 +52,6 @@ with col2:
     images_dict = {}
     if uploaded_files:
         for uploaded_file in uploaded_files:
-            # تنظيف اسم الملف من الامتداد والمسافات
             raw_name = os.path.splitext(uploaded_file.name)[0].strip().lower()
             clean_key = re.sub(r'[^\w\s]', '', raw_name)
             save_path = f"temp_img_{uploaded_file.name}"
@@ -72,7 +80,6 @@ def generate_ai_image(prompt_text, file_filename, width, height):
     return None
 
 def normalize_text(text):
-    """تنظيف النص للمطابقة السريعة بدون همزات أو أل تعريف"""
     text = text.lower()
     text = re.sub(r'[إأآا]', 'ا', text)
     text = re.sub(r'ة', 'ه', text)
@@ -109,7 +116,6 @@ def parse_script_dialogues(raw_text, img_map):
         if any(w in combined_context for w in ["الأم", "أم", "هند", "سارة", "مريم", "ماما", "زوجة", "أنثى"]):
             voice = "ar-EG-SalmaNeural"
 
-        # مطابقة مرنة ومتقدمة للصور
         selected_image = None
         norm_speaker = normalize_text(speaker_name)
         norm_context = normalize_text(combined_context)
@@ -212,7 +218,6 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات المت�
                             if image_to_use and os.path.exists(image_to_use):
                                 try:
                                     img_clip = ImageClip(image_to_use).with_duration(duration)
-                                    # إضافة حركة زوم حية (Zoom/Motion Effect)
                                     clip = img_clip.resized(lambda t: 1 + 0.04 * (t / duration)).resized(height=target_h)
                                 except Exception:
                                     clip = ImageClip(image_to_use).set_duration(duration).resize(height=target_h)
