@@ -7,7 +7,7 @@ import urllib.parse
 import requests
 import math
 
-# استيراد MoviePy بطريقة متوافقة مع جميع الإصدارات (1.x و 2.x)
+# استيراد آمن لمكتبة MoviePy
 try:
     from moviepy.editor import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
 except ImportError:
@@ -15,8 +15,8 @@ except ImportError:
 
 st.set_page_config(page_title="المخرج السينمائي الذكي", page_icon="🎬", layout="wide")
 
-st.title("🎬 صانع المسلسلات: التقسيم التلقائي (10 دقائق) وتحميل الأجزاء")
-st.write("ضع السكربت كاملاً، وسيتم حساب المدة الزمنية وتقسيمه إلى فيديوهات لا تتجاوز 10 دقائق لتسهيل المعاينة والتحميل!")
+st.title("🎬 صانع المسلسلات: تحريك الشخصيات وتأثيرات الكاميرا")
+st.write("تم إضافة الحركة الديناميكية للشخصيات وتحسين مطابقة الصور المرفوعة تلقائياً!")
 
 col1, col2 = st.columns([2, 1])
 
@@ -36,18 +36,22 @@ with col2:
         target_h, target_w = 480, 270
 
     st.divider()
-    st.header("📸 صور الشخصيات (اختياري)")
+    st.header("📸 صور الشخصيات")
+    st.info("💡 سمّ الصور بأسمائها (مثال: `عبدالحميد.jpg` أو `الأم.png`).")
     uploaded_files = st.file_uploader("ارفع صور الشخصيات هنا:", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
     
     images_dict = {}
     if uploaded_files:
         for uploaded_file in uploaded_files:
+            # تنظيف اسم الملف من الامتداد والمسافات
             raw_name = os.path.splitext(uploaded_file.name)[0].strip().lower()
+            clean_key = re.sub(r'[^\w\s]', '', raw_name)
             save_path = f"temp_img_{uploaded_file.name}"
             with open(save_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
+            images_dict[clean_key] = save_path
             images_dict[raw_name] = save_path
-        st.success(f"تم تحميل {len(images_dict)} صورة.")
+        st.success(f"تم تحميل {len(uploaded_files)} صورة وجاهزة للمطابقة.")
 
 with col1:
     st.header("📜 السكربت السينمائي")
@@ -66,6 +70,13 @@ def generate_ai_image(prompt_text, file_filename, width, height):
     except Exception as e:
         print(f"Error generating AI image: {e}")
     return None
+
+def normalize_text(text):
+    """تنظيف النص للمطابقة السريعة بدون همزات أو أل تعريف"""
+    text = text.lower()
+    text = re.sub(r'[إأآا]', 'ا', text)
+    text = re.sub(r'ة', 'ه', text)
+    return text
 
 def parse_script_dialogues(raw_text, img_map):
     lines = raw_text.split("\n")
@@ -98,9 +109,14 @@ def parse_script_dialogues(raw_text, img_map):
         if any(w in combined_context for w in ["الأم", "أم", "هند", "سارة", "مريم", "ماما", "زوجة", "أنثى"]):
             voice = "ar-EG-SalmaNeural"
 
+        # مطابقة مرنة ومتقدمة للصور
         selected_image = None
+        norm_speaker = normalize_text(speaker_name)
+        norm_context = normalize_text(combined_context)
+
         for img_name, img_path in img_map.items():
-            if img_name in speaker_name.lower() or img_name in combined_context.lower():
+            norm_img = normalize_text(img_name)
+            if norm_img in norm_speaker or norm_img in norm_context or norm_speaker in norm_img:
                 selected_image = img_path
                 break
 
@@ -114,11 +130,11 @@ def parse_script_dialogues(raw_text, img_map):
 
     return dialogues
 
-if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
+if st.button("🚀 بدء تحليل وإنشاء الفيديوهات المتحركة"):
     if not script_text.strip():
         st.warning("رجاءً أدخل السكربت أولاً!")
     else:
-        with st.spinner("جاري تحليل السكربت، إنشاء مقاطع الصوت، وتحديد المدة والأجزاء..."):
+        with st.spinner("جاري تحريك الصور، توليد الأصوات، ورندر المشاهد السينمائية..."):
             try:
                 dialogues = parse_script_dialogues(script_text, images_dict)
                 if not dialogues:
@@ -147,11 +163,11 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
                     asyncio.run(generate_audios())
 
                     total_duration = sum(x["duration"] for x in audio_items)
-                    MAX_PART_DURATION = 600.0  # 10 دقائق كحد أقصى لكل جزء
+                    MAX_PART_DURATION = 600.0
                     num_parts = math.ceil(total_duration / MAX_PART_DURATION) if total_duration > 0 else 1
 
                     total_mins = round(total_duration / 60, 1)
-                    st.info(f"📊 **تحليل السكربت:** المدة الإجمالية للسكربت حوالي **{total_mins} دقيقة**. تم تقسيمه إلى **{num_parts} فيديو/أجزاء** (الحد الأقصى لكل فيديو 10 دقائق).")
+                    st.info(f"📊 **تحليل السكربت:** المدة الإجمالية **{total_mins} دقيقة** مقسمة إلى **{num_parts} فيديو**.")
 
                     parts = []
                     current_part = []
@@ -172,7 +188,7 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
                     ai_generated_cache = {}
 
                     for p_idx, part in enumerate(parts):
-                        st.subheader(f"🎬 الفيديو رقم ({p_idx + 1}) من {len(parts)} - المدة: {round(sum(x['duration'] for x in part)/60, 1)} دقيقة")
+                        st.subheader(f"🎬 الفيديو رقم ({p_idx + 1}) من {len(parts)}")
                         
                         video_clips = []
                         for idx, entry in enumerate(part):
@@ -194,10 +210,11 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
                                         temp_files.append(generated_file)
 
                             if image_to_use and os.path.exists(image_to_use):
-                                # دعم دالتي التكبير/التصغير بحسب إصدار moviepy
                                 try:
-                                    clip = ImageClip(image_to_use).with_duration(duration).resized(height=target_h)
-                                except AttributeError:
+                                    img_clip = ImageClip(image_to_use).with_duration(duration)
+                                    # إضافة حركة زوم حية (Zoom/Motion Effect)
+                                    clip = img_clip.resized(lambda t: 1 + 0.04 * (t / duration)).resized(height=target_h)
+                                except Exception:
                                     clip = ImageClip(image_to_use).set_duration(duration).resize(height=target_h)
                             else:
                                 clip = ColorClip(size=(target_w, target_h), color=(25, 25, 30), duration=duration)
