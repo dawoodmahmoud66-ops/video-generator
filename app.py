@@ -34,14 +34,12 @@ with col1:
     st.header("📜 السكربت السينمائي")
     script_text = st.text_area("أدخل السكربت النصي هنا:", height=380, placeholder="ضع نص المسلسل أو المشهد هنا...")
 
-# دالة توليد الصورة بالذكاء الاصطناعي مجاناً عبر API
 def generate_ai_image(prompt_text, file_filename):
     try:
-        # صياغة وصف سينمائي بالإنجليزية للحصول على أفضل جودة من الذكاء الاصطناعي
-        encoded_prompt = urllib.parse.quote(f"cinematic drama portrait, Egyptian realistic scene, {prompt_text}, highly detailed, 8k resolution, cinematic lighting")
+        encoded_prompt = urllib.parse.quote(f"cinematic drama portrait, Egyptian realistic scene, {prompt_text}, highly detailed, 8k resolution")
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1080&height=1920&nologo=true"
         
-        response = requests.get(image_url, timeout=15)
+        response = requests.get(image_url, timeout=10)
         if response.status_code == 200:
             with open(file_filename, "wb") as f:
                 f.write(response.content)
@@ -68,7 +66,7 @@ def clean_and_parse_script(raw_text, img_map):
         if is_ignored:
             continue
 
-        voice = "ar-EG-ShakirNeural" # افتراضي ذكر
+        voice = "ar-EG-ShakirNeural"
         speaker_name = "راوي"
 
         if ":" in line_str or "：" in line_str:
@@ -80,11 +78,9 @@ def clean_and_parse_script(raw_text, img_map):
 
         combined_context = f"{speaker_name} {clean_text}"
         
-        # تحديد الصوت (ذكر / أنثى)
         if any(w in combined_context for w in ["الأم", "أم", "هند", "سارة", "مريم", "ماما", "زوجة", "أنثى"]):
             voice = "ar-EG-SalmaNeural"
 
-        # 1. البحث أولاً عن صورة مرفوعة يدوياً
         selected_image = None
         for img_name, img_path in img_map.items():
             if img_name in speaker_name.lower() or img_name in combined_context.lower():
@@ -110,11 +106,10 @@ if st.button("🚀 إنشاء الفيديو والتوليد بالذكاء ا�
                 dialogues = clean_and_parse_script(script_text, images_dict)
                 video_clips = []
                 temp_files = []
-                ai_generated_cache = {} # لتجنب إعادة رسم نفس الشخصية أكثر من مرة
+                ai_generated_cache = {}
 
                 async def process_segments():
                     for idx, item in enumerate(dialogues):
-                        # 1. توليد الصوت
                         audio_path = f"audio_{idx}.mp3"
                         communicate = edge_tts.Communicate(item["text"], item["voice"])
                         await communicate.save(audio_path)
@@ -125,7 +120,6 @@ if st.button("🚀 إنشاء الفيديو والتوليد بالذكاء ا�
 
                         image_to_use = item["image"]
                         
-                        # 2. إذا لم تكن هناك صورة مرفوعة، يتم التوليد بالذكاء الاصطناعي
                         if not image_to_use:
                             speaker = item["speaker"]
                             if speaker in ai_generated_cache:
@@ -138,7 +132,6 @@ if st.button("🚀 إنشاء الفيديو والتوليد بالذكاء ا�
                                     ai_generated_cache[speaker] = generated_file
                                     temp_files.append(generated_file)
 
-                        # 3. إنشاء كليب الفيديو
                         if image_to_use and os.path.exists(image_to_use):
                             clip = ImageClip(image_to_use).with_duration(duration)
                             clip = clip.resized(height=1920)
@@ -150,12 +143,10 @@ if st.button("🚀 إنشاء الفيديو والتوليد بالذكاء ا�
 
                 asyncio.run(process_segments())
 
-                # دمج كافة المقاطع
                 final_video = concatenate_videoclips(video_clips, method="compose")
                 output_path = "final_ai_video.mp4"
                 final_video.write_videofile(output_path, fps=24)
 
-                # تنظيف الملفات المؤقتة
                 for c in video_clips: c.close()
                 for f in temp_files:
                     if os.path.exists(f): os.remove(f)
