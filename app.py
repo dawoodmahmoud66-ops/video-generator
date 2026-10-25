@@ -13,40 +13,39 @@ try:
 except ImportError:
     from moviepy import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
 
-st.set_page_config(page_title="المخرج السينمائي الذكي", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="المخرج السينمائي - نظام المسلسلات", page_icon="🎬", layout="wide")
 
-st.title("🎬 صانع المسلسلات: تحريك الشخصيات وتأثيرات الكاميرا")
-st.write("تم إضافة خيار دقة 360p لتوفير أعلى سرعة معالجة وأقل استهلاك للذاكرة!")
+st.title("🎬 صانع المسلسلات القصصية السينمائية")
+st.write("حول السكربت إلى مسلسل درامي بأسلوب الروايات والمشاهد المتحركة المصممة للموبايل!")
 
 col1, col2 = st.columns([2, 1])
 
 with col2:
-    st.header("⚙️ إعدادات الإنتاج")
+    st.header("⚙️ إعدادات الشاشة والدقة")
     
-    # إضافة خيار 360p هنا
     resolution_option = st.selectbox(
         "🎯 اختر دقة الفيديو قبل الإنشاء:",
         options=[
-            "360p (فائق السرعة وخفيف جداً)", 
+            "360p (فائق السرعة وخفيف)", 
             "480p (سريع وخفيف)", 
-            "720p (سريع وموصى به)", 
-            "1080p (دقة عالية)"
+            "720p (سريع وموصى به - 9:16)", 
+            "1080p (دقة سينمائية عالية)"
         ]
     )
     
-    # تحديد أبعاد الشاشة حسب اختيار الدقة
+    # تحديد أبعاد الشاشة العمودية 9:16 بدقة للموبايل
     if "1080p" in resolution_option:
-        target_h, target_w = 1080, 608
+        target_w, target_h = 1080, 1920
     elif "720p" in resolution_option:
-        target_h, target_w = 720, 405
+        target_w, target_h = 720, 1280
     elif "480p" in resolution_option:
-        target_h, target_w = 480, 270
+        target_w, target_h = 480, 854
     else:  # 360p
-        target_h, target_w = 360, 202
+        target_w, target_h = 360, 640
 
     st.divider()
-    st.header("📸 صور الشخصيات")
-    st.info("💡 سمّ الصور بأسمائها (مثال: `عبدالحميد.jpg` أو `الأم.png`).")
+    st.header("📸 صور الشخصيات (اختياري)")
+    st.info("💡 يمكنك رفع صور محددة للشخصيات، أو ترك الذكاء الاصطناعي يرسم مشاهد الدراما تلقائياً.")
     uploaded_files = st.file_uploader("ارفع صور الشخصيات هنا:", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
     
     images_dict = {}
@@ -59,18 +58,20 @@ with col2:
                 f.write(uploaded_file.getbuffer())
             images_dict[clean_key] = save_path
             images_dict[raw_name] = save_path
-        st.success(f"تم تحميل {len(uploaded_files)} صورة وجاهزة للمطابقة.")
+        st.success(f"تم تحميل {len(uploaded_files)} صورة.")
 
 with col1:
-    st.header("📜 السكربت السينمائي")
-    script_text = st.text_area("أدخل السكربت النصي هنا:", height=420, placeholder="ضع نص المسلسل أو المشهد هنا...")
+    st.header("📜 السكربت النصي للمسلسل")
+    script_text = st.text_area("أدخل السكربت المنسق هنا:", height=420, placeholder="ضع السكربت المنسق هنا...")
 
 def generate_ai_image(prompt_text, file_filename, width, height):
     try:
-        encoded_prompt = urllib.parse.quote(f"cinematic drama portrait, Egyptian realistic scene, {prompt_text}")
+        # وصف سينمائي متطور يناسب مسلسلات الدراما التاريخية والاجتماعية
+        dramatic_prompt = f"cinematic dramatic lighting, dark atmospheric moody story scene, realistic style, Egyptian social drama, high detail portrait, {prompt_text}"
+        encoded_prompt = urllib.parse.quote(dramatic_prompt)
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
         
-        response = requests.get(image_url, timeout=5)
+        response = requests.get(image_url, timeout=6)
         if response.status_code == 200:
             with open(file_filename, "wb") as f:
                 f.write(response.content)
@@ -102,7 +103,7 @@ def parse_script_dialogues(raw_text, img_map):
         if any(re.search(pat, line_str, re.IGNORECASE) for pat in IGNORE_PATTERNS):
             continue
 
-        voice = "ar-EG-ShakirNeural"
+        voice = "ar-EG-ShakirNeural"  # صوت ذكوري درامي للراوي والشخصيات الذكورية
         speaker_name = "راوي"
 
         if ":" in line_str or "：" in line_str:
@@ -113,6 +114,7 @@ def parse_script_dialogues(raw_text, img_map):
             clean_text = line_str
 
         combined_context = f"{speaker_name} {clean_text}"
+        # التعرف على الأصوات النسائية
         if any(w in combined_context for w in ["الأم", "أم", "هند", "سارة", "مريم", "ماما", "زوجة", "أنثى"]):
             voice = "ar-EG-SalmaNeural"
 
@@ -136,11 +138,11 @@ def parse_script_dialogues(raw_text, img_map):
 
     return dialogues
 
-if st.button("🚀 بدء تحليل وإنشاء الفيديوهات المتحركة"):
+if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
     if not script_text.strip():
         st.warning("رجاءً أدخل السكربت أولاً!")
     else:
-        with st.spinner("جاري تحريك الصور، توليد الأصوات، ورندر المشاهد السينمائية..."):
+        with st.spinner("جاري تحريك الكاميرا، توليد الأصوات، ورندر أجزاء المسلسل..."):
             try:
                 dialogues = parse_script_dialogues(script_text, images_dict)
                 if not dialogues:
@@ -169,11 +171,11 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات المت�
                     asyncio.run(generate_audios())
 
                     total_duration = sum(x["duration"] for x in audio_items)
-                    MAX_PART_DURATION = 600.0
+                    MAX_PART_DURATION = 600.0  # تقسيم كل 10 دقائق
                     num_parts = math.ceil(total_duration / MAX_PART_DURATION) if total_duration > 0 else 1
 
                     total_mins = round(total_duration / 60, 1)
-                    st.info(f"📊 **تحليل السكربت:** المدة الإجمالية **{total_mins} دقيقة** مقسمة إلى **{num_parts} فيديو**.")
+                    st.info(f"📊 **تحليل المسلسل:** مدة العرض **{total_mins} دقيقة** مقسمة على **{num_parts} فيديو/أجزاء**.")
 
                     parts = []
                     current_part = []
@@ -194,7 +196,7 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات المت�
                     ai_generated_cache = {}
 
                     for p_idx, part in enumerate(parts):
-                        st.subheader(f"🎬 الفيديو رقم ({p_idx + 1}) من {len(parts)}")
+                        st.subheader(f"🎬 الجزء رقم ({p_idx + 1}) من {len(parts)}")
                         
                         video_clips = []
                         for idx, entry in enumerate(part):
@@ -209,7 +211,7 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات المت�
                                     image_to_use = ai_generated_cache[speaker]
                                 else:
                                     ai_img_path = f"ai_img_p{p_idx}_{idx}.png"
-                                    generated_file = generate_ai_image(speaker, ai_img_path, target_w, target_h)
+                                    generated_file = generate_ai_image(f"{speaker} {item['text'][:40]}", ai_img_path, target_w, target_h)
                                     if generated_file:
                                         image_to_use = generated_file
                                         ai_generated_cache[speaker] = generated_file
@@ -218,11 +220,12 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات المت�
                             if image_to_use and os.path.exists(image_to_use):
                                 try:
                                     img_clip = ImageClip(image_to_use).with_duration(duration)
-                                    clip = img_clip.resized(lambda t: 1 + 0.04 * (t / duration)).resized(height=target_h)
+                                    # حركة زوم بطيئة نحو المشهد (Dramatic Camera Zoom-in)
+                                    clip = img_clip.resized(lambda t: 1 + 0.05 * (t / duration)).resized(height=target_h)
                                 except Exception:
                                     clip = ImageClip(image_to_use).set_duration(duration).resize(height=target_h)
                             else:
-                                clip = ColorClip(size=(target_w, target_h), color=(25, 25, 30), duration=duration)
+                                clip = ColorClip(size=(target_w, target_h), color=(20, 20, 25), duration=duration)
 
                             try:
                                 clip = clip.with_audio(audio_clip)
@@ -240,9 +243,9 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات المت�
                         st.video(out_file)
                         with open(out_file, "rb") as file:
                             st.download_button(
-                                f"📥 تحميل الفيديو رقم ({p_idx + 1})", 
+                                f"📥 تحميل الجزء رقم ({p_idx + 1})", 
                                 data=file, 
-                                file_name=f"video_part_{p_idx + 1}.mp4", 
+                                file_name=f"part_{p_idx + 1}.mp4", 
                                 mime="video/mp4",
                                 key=f"part_btn_{p_idx}"
                             )
