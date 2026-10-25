@@ -1,24 +1,39 @@
 import streamlit as st
 import asyncio
 import edge_tts
-from moviepy import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
+from moviepy.editor import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
 import os
 import re
 import urllib.parse
 import requests
+import math
 
-st.set_page_config(page_title="المخرج السينمائي بالذكاء الاصطناعي", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="المخرج السينمائي الذكي", page_icon="🎬", layout="wide")
 
-st.title("🎬 تحويل السكربت إلى فيديو وتوليد صور الشخصيات بالذكاء الاصطناعي")
-st.write("الصق السكربت كاملاً، وسيقوم النظام بتوليد صور سينمائية مناسبة لكل شخصية تلقائياً ورندر الفيديو!")
+st.title("🎬 صانع المسلسلات: التقسيم التلقائي (10 دقائق) وتحميل الأجزاء")
+st.write("ضع السكربت كاملاً، وسيتم حساب المدة الزمنية وتقسيمه إلى فيديوهات لا تتجاوز 10 دقائق لتسهيل المعاينة والتحميل!")
 
 col1, col2 = st.columns([2, 1])
 
 with col2:
-    st.header("📸 صور الشخصيات (اختياري)")
-    st.info("💡 **ملاحظة:** يمكنك رفع صور يدك، وإذا لم ترفع أي صورة وسيقوم **الذكاء الاصطناعي برسم الصور تلقائياً**!")
+    st.header("⚙️ إعدادات الإنتاج")
     
-    uploaded_files = st.file_uploader("ارفع صور الشخصيات هنا (إن وجدت):", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    # خيار تحديد دقة الفيديو
+    resolution_option = st.selectbox(
+        "🎯 اختر دقة الفيديو قبل الإنشاء:",
+        options=["720p (سريع وموصى به)", "1080p (دقة عالية)", "480p (سريع جداً وخفيف)"]
+    )
+    
+    if "1080p" in resolution_option:
+        target_h, target_w = 1920, 1080
+    elif "480p" in resolution_option:
+        target_h, target_w = 854, 480
+    else:
+        target_h, target_w = 1280, 720
+
+    st.divider()
+    st.header("📸 صور الشخصيات (اختياري)")
+    uploaded_files = st.file_uploader("ارفع صور الشخصيات هنا:", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
     
     images_dict = {}
     if uploaded_files:
@@ -28,16 +43,16 @@ with col2:
             with open(save_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             images_dict[raw_name] = save_path
-        st.success(f"تم تحميل {len(images_dict)} صورة يدوياً.")
+        st.success(f"تم تحميل {len(images_dict)} صورة.")
 
 with col1:
     st.header("📜 السكربت السينمائي")
-    script_text = st.text_area("أدخل السكربت النصي هنا:", height=380, placeholder="ضع نص المسلسل أو المشهد هنا...")
+    script_text = st.text_area("أدخل السكربت النصي هنا:", height=420, placeholder="ضع نص المسلسل أو المشهد هنا...")
 
-def generate_ai_image(prompt_text, file_filename):
+def generate_ai_image(prompt_text, file_filename, width, height):
     try:
-        encoded_prompt = urllib.parse.quote(f"cinematic drama portrait, Egyptian realistic scene, {prompt_text}, highly detailed, 8k resolution")
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1080&height=1920&nologo=true"
+        encoded_prompt = urllib.parse.quote(f"cinematic drama portrait, Egyptian realistic scene, {prompt_text}, highly detailed")
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
         
         response = requests.get(image_url, timeout=10)
         if response.status_code == 200:
@@ -48,10 +63,10 @@ def generate_ai_image(prompt_text, file_filename):
         print(f"Error generating AI image: {e}")
     return None
 
-def clean_and_parse_script(raw_text, img_map):
+def parse_script_dialogues(raw_text, img_map):
     lines = raw_text.split("\n")
-    parsed_dialogues = []
-    
+    dialogues = []
+
     IGNORE_PATTERNS = [
         r'^المشهد', r'^داخلي', r'^خارجي', r'^قطع إلى', r'^نهاية المشهد', 
         r'^مونتاج', r'^ملاحظة', r'^يتبع', r'^النوع:', r'^الحلقة:', r'^المسلسل'
@@ -61,9 +76,8 @@ def clean_and_parse_script(raw_text, img_map):
         line_str = line.strip()
         if not line_str or line_str.startswith("---") or line_str.startswith("-"):
             continue
-            
-        is_ignored = any(re.search(pat, line_str, re.IGNORECASE) for pat in IGNORE_PATTERNS)
-        if is_ignored:
+
+        if any(re.search(pat, line_str, re.IGNORECASE) for pat in IGNORE_PATTERNS):
             continue
 
         voice = "ar-EG-ShakirNeural"
@@ -77,7 +91,6 @@ def clean_and_parse_script(raw_text, img_map):
             clean_text = line_str
 
         combined_context = f"{speaker_name} {clean_text}"
-        
         if any(w in combined_context for w in ["الأم", "أم", "هند", "سارة", "مريم", "ماما", "زوجة", "أنثى"]):
             voice = "ar-EG-SalmaNeural"
 
@@ -88,74 +101,133 @@ def clean_and_parse_script(raw_text, img_map):
                 break
 
         if clean_text:
-            parsed_dialogues.append({
+            dialogues.append({
                 "speaker": speaker_name,
                 "text": clean_text,
                 "voice": voice,
                 "image": selected_image
             })
-            
-    return parsed_dialogues
 
-if st.button("🚀 إنشاء الفيديو والتوليد بالذكاء الاصطناعي"):
+    return dialogues
+
+if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
     if not script_text.strip():
         st.warning("رجاءً أدخل السكربت أولاً!")
     else:
-        with st.spinner("جاري تحليل الشخصيات، رسم الصور بالذكاء الاصطناعي، ورندر الفيديو..."):
+        with st.spinner("جاري تحليل السكربت، إنشاء مقاطع الصوت، وتحديد المدة والإجزاء..."):
             try:
-                dialogues = clean_and_parse_script(script_text, images_dict)
-                video_clips = []
-                temp_files = []
-                ai_generated_cache = {}
+                dialogues = parse_script_dialogues(script_text, images_dict)
+                if not dialogues:
+                    st.error("لم يتم العثور على أسطر حوارية صالحة للرندر!")
+                else:
+                    # 1. توليد الأصوات لحساب المدة الزمنيّة الإجمالية
+                    audio_items = []
+                    temp_files = []
+                    total_duration = 0.0
 
-                async def process_segments():
-                    for idx, item in enumerate(dialogues):
-                        audio_path = f"audio_{idx}.mp3"
-                        communicate = edge_tts.Communicate(item["text"], item["voice"])
-                        await communicate.save(audio_path)
-                        temp_files.append(audio_path)
+                    async def generate_audios():
+                        nonlocal total_duration
+                        for idx, item in enumerate(dialogues):
+                            audio_path = f"temp_audio_{idx}.mp3"
+                            communicate = edge_tts.Communicate(item["text"], item["voice"])
+                            await communicate.save(audio_path)
+                            temp_files.append(audio_path)
 
-                        audio_clip = AudioFileClip(audio_path)
-                        duration = audio_clip.duration
+                            clip = AudioFileClip(audio_path)
+                            dur = clip.duration
+                            total_duration += dur
+                            
+                            audio_items.append({
+                                "item": item,
+                                "audio_path": audio_path,
+                                "clip": clip,
+                                "duration": dur
+                            })
 
-                        image_to_use = item["image"]
-                        
-                        if not image_to_use:
-                            speaker = item["speaker"]
-                            if speaker in ai_generated_cache:
-                                image_to_use = ai_generated_cache[speaker]
-                            else:
-                                ai_img_path = f"ai_img_{idx}.png"
-                                generated_file = generate_ai_image(speaker, ai_img_path)
-                                if generated_file:
-                                    image_to_use = generated_file
-                                    ai_generated_cache[speaker] = generated_file
-                                    temp_files.append(generated_file)
+                    asyncio.run(generate_audios())
 
-                        if image_to_use and os.path.exists(image_to_use):
-                            clip = ImageClip(image_to_use).with_duration(duration)
-                            clip = clip.resized(height=1920)
+                    # حساب الوقت الأقصى للجزء الواحد (10 دقائق = 600 ثانية)
+                    MAX_PART_DURATION = 600.0
+                    num_parts = math.ceil(total_duration / MAX_PART_DURATION) if total_duration > 0 else 1
+
+                    total_mins = round(total_duration / 60, 1)
+                    st.info(f"📊 **تحليل السكربت:** المدة الإجمالية للسكربت حوالي **{total_mins} دقيقة**. يتم تقشيمها إلى **{num_parts} فيديو/أجزاء** (الحد الأقصى لكل فيديو 10 دقائق).")
+
+                    # 2. تجميع الأسطر والمقاطع في أجزاء لا تتعدى 10 دقائق
+                    parts = []
+                    current_part = []
+                    current_part_dur = 0.0
+
+                    for a_item in audio_items:
+                        if current_part_dur + a_item["duration"] > MAX_PART_DURATION and current_part:
+                            parts.append(current_part)
+                            current_part = [a_item]
+                            current_part_dur = a_item["duration"]
                         else:
-                            clip = ColorClip(size=(1080, 1920), color=(25, 25, 30), duration=duration)
+                            current_part.append(a_item)
+                            current_part_dur += a_item["duration"]
 
-                        clip = clip.with_audio(audio_clip)
-                        video_clips.append(clip)
+                    if current_part:
+                        parts.append(current_part)
 
-                asyncio.run(process_segments())
+                    # 3. معالجة ورندر كل جزء بشكل مستقل
+                    ai_generated_cache = {}
 
-                final_video = concatenate_videoclips(video_clips, method="compose")
-                output_path = "final_ai_video.mp4"
-                final_video.write_videofile(output_path, fps=24)
+                    for p_idx, part in enumerate(parts):
+                        st.subheader(f"🎬 الفيديو رقم ({p_idx + 1}) من {len(parts)} - المدة: {round(sum(x['duration'] for x in part)/60, 1)} دقيقة")
+                        
+                        video_clips = []
+                        for idx, entry in enumerate(part):
+                            item = entry["item"]
+                            duration = entry["duration"]
+                            audio_clip = entry["clip"]
 
-                for c in video_clips: c.close()
-                for f in temp_files:
-                    if os.path.exists(f): os.remove(f)
+                            image_to_use = item["image"]
+                            if not image_to_use:
+                                speaker = item["speaker"]
+                                if speaker in ai_generated_cache:
+                                    image_to_use = ai_generated_cache[speaker]
+                                else:
+                                    ai_img_path = f"ai_img_p{p_idx}_{idx}.png"
+                                    generated_file = generate_ai_image(speaker, ai_img_path, target_w, target_h)
+                                    if generated_file:
+                                        image_to_use = generated_file
+                                        ai_generated_cache[speaker] = generated_file
+                                        temp_files.append(generated_file)
 
-                st.success("تم رسم الصور وتوليد الفيديو بالذكاء الاصطناعي بنجاح! 🎉")
-                st.video(output_path)
-                
-                with open(output_path, "rb") as file:
-                    st.download_button("📥 تحميل الفيديو النهائي", data=file, file_name="ai_drama_video.mp4", mime="video/mp4")
+                            if image_to_use and os.path.exists(image_to_use):
+                                clip = ImageClip(image_to_use).set_duration(duration)
+                                clip = clip.resize(height=target_h)
+                            else:
+                                clip = ColorClip(size=(target_w, target_h), color=(25, 25, 30), duration=duration)
+
+                            clip = clip.set_audio(audio_clip)
+                            video_clips.append(clip)
+
+                        # دمج مقاطع الجزء
+                        final_video = concatenate_videoclips(video_clips, method="compose")
+                        out_file = f"video_part_{p_idx + 1}.mp4"
+                        final_video.write_videofile(out_file, fps=20, preset="ultrafast", threads=2)
+
+                        # تنظيف كليبات الجزء
+                        for c in video_clips: c.close()
+
+                        # عرض الفيديو وزر التحميل المخصص للجزء
+                        st.video(out_file)
+                        with open(out_file, "rb") as file:
+                            st.download_button(
+                                f"📥 تحميل الفيديو رقم ({p_idx + 1})", 
+                                data=file, 
+                                file_name=f"video_part_{p_idx + 1}.mp4", 
+                                mime="video/mp4",
+                                key=f"part_btn_{p_idx}"
+                            )
+                        st.divider()
+
+                    # تنظيف جميع الملفات المؤقتة
+                    for entry in audio_items: entry["clip"].close()
+                    for f in temp_files:
+                        if os.path.exists(f): os.remove(f)
 
             except Exception as e:
                 st.error(f"حدث خطأ أثناء المعالجة: {e}")
