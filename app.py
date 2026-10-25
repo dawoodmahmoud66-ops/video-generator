@@ -121,10 +121,8 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
                 else:
                     audio_items = []
                     temp_files = []
-                    total_duration = 0.0
 
                     async def generate_audios():
-                        nonlocal total_duration
                         for idx, item in enumerate(dialogues):
                             audio_path = f"temp_audio_{idx}.mp3"
                             communicate = edge_tts.Communicate(item["text"], item["voice"])
@@ -133,7 +131,6 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
 
                             clip = AudioFileClip(audio_path)
                             dur = clip.duration
-                            total_duration += dur
                             
                             audio_items.append({
                                 "item": item,
@@ -144,6 +141,8 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
 
                     asyncio.run(generate_audios())
 
+                    # حساب المدة الإجمالية بأمان
+                    total_duration = sum(x["duration"] for x in audio_items)
                     MAX_PART_DURATION = 600.0  # 10 دقائق كحد أقصى لكل جزء
                     num_parts = math.ceil(total_duration / MAX_PART_DURATION) if total_duration > 0 else 1
 
