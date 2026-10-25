@@ -18,18 +18,17 @@ col1, col2 = st.columns([2, 1])
 with col2:
     st.header("⚙️ إعدادات الإنتاج")
     
-    # خيار تحديد دقة الفيديو
     resolution_option = st.selectbox(
         "🎯 اختر دقة الفيديو قبل الإنشاء:",
-        options=["720p (سريع وموصى به)", "1080p (دقة عالية)", "480p (سريع جداً وخفيف)"]
+        options=["480p (سريع جداً وخفيف)", "720p (سريع وموصى به)", "1080p (دقة عالية)"]
     )
     
     if "1080p" in resolution_option:
-        target_h, target_w = 1920, 1080
-    elif "480p" in resolution_option:
-        target_h, target_w = 854, 480
+        target_h, target_w = 1080, 608
+    elif "720p" in resolution_option:
+        target_h, target_w = 720, 405
     else:
-        target_h, target_w = 1280, 720
+        target_h, target_w = 480, 270
 
     st.divider()
     st.header("📸 صور الشخصيات (اختياري)")
@@ -51,10 +50,10 @@ with col1:
 
 def generate_ai_image(prompt_text, file_filename, width, height):
     try:
-        encoded_prompt = urllib.parse.quote(f"cinematic drama portrait, Egyptian realistic scene, {prompt_text}, highly detailed")
+        encoded_prompt = urllib.parse.quote(f"cinematic drama portrait, Egyptian realistic scene, {prompt_text}")
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
         
-        response = requests.get(image_url, timeout=10)
+        response = requests.get(image_url, timeout=5)
         if response.status_code == 200:
             with open(file_filename, "wb") as f:
                 f.write(response.content)
@@ -114,13 +113,12 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
     if not script_text.strip():
         st.warning("رجاءً أدخل السكربت أولاً!")
     else:
-        with st.spinner("جاري تحليل السكربت، إنشاء مقاطع الصوت، وتحديد المدة والإجزاء..."):
+        with st.spinner("جاري تحليل السكربت، إنشاء مقاطع الصوت، وتحديد المدة والأجزاء..."):
             try:
                 dialogues = parse_script_dialogues(script_text, images_dict)
                 if not dialogues:
                     st.error("لم يتم العثور على أسطر حوارية صالحة للرندر!")
                 else:
-                    # 1. توليد الأصوات لحساب المدة الزمنيّة الإجمالية
                     audio_items = []
                     temp_files = []
                     total_duration = 0.0
@@ -146,14 +144,12 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
 
                     asyncio.run(generate_audios())
 
-                    # حساب الوقت الأقصى للجزء الواحد (10 دقائق = 600 ثانية)
-                    MAX_PART_DURATION = 600.0
+                    MAX_PART_DURATION = 600.0  # 10 دقائق كحد أقصى لكل جزء
                     num_parts = math.ceil(total_duration / MAX_PART_DURATION) if total_duration > 0 else 1
 
                     total_mins = round(total_duration / 60, 1)
-                    st.info(f"📊 **تحليل السكربت:** المدة الإجمالية للسكربت حوالي **{total_mins} دقيقة**. يتم تقشيمها إلى **{num_parts} فيديو/أجزاء** (الحد الأقصى لكل فيديو 10 دقائق).")
+                    st.info(f"📊 **تحليل السكربت:** المدة الإجمالية للسكربت حوالي **{total_mins} دقيقة**. تم تقسيمه إلى **{num_parts} فيديو/أجزاء** (الحد الأقصى لكل فيديو 10 دقائق).")
 
-                    # 2. تجميع الأسطر والمقاطع في أجزاء لا تتعدى 10 دقائق
                     parts = []
                     current_part = []
                     current_part_dur = 0.0
@@ -170,7 +166,6 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
                     if current_part:
                         parts.append(current_part)
 
-                    # 3. معالجة ورندر كل جزء بشكل مستقل
                     ai_generated_cache = {}
 
                     for p_idx, part in enumerate(parts):
@@ -204,15 +199,12 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
                             clip = clip.set_audio(audio_clip)
                             video_clips.append(clip)
 
-                        # دمج مقاطع الجزء
                         final_video = concatenate_videoclips(video_clips, method="compose")
                         out_file = f"video_part_{p_idx + 1}.mp4"
-                        final_video.write_videofile(out_file, fps=20, preset="ultrafast", threads=2)
+                        final_video.write_videofile(out_file, fps=15, preset="ultrafast", threads=2)
 
-                        # تنظيف كليبات الجزء
                         for c in video_clips: c.close()
 
-                        # عرض الفيديو وزر التحميل المخصص للجزء
                         st.video(out_file)
                         with open(out_file, "rb") as file:
                             st.download_button(
@@ -224,7 +216,6 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
                             )
                         st.divider()
 
-                    # تنظيف جميع الملفات المؤقتة
                     for entry in audio_items: entry["clip"].close()
                     for f in temp_files:
                         if os.path.exists(f): os.remove(f)
