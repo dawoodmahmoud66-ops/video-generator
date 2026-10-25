@@ -1,12 +1,17 @@
 import streamlit as st
 import asyncio
 import edge_tts
-from moviepy.editor import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
 import os
 import re
 import urllib.parse
 import requests
 import math
+
+# استيراد MoviePy بطريقة متوافقة مع جميع الإصدارات (1.x و 2.x)
+try:
+    from moviepy.editor import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
+except ImportError:
+    from moviepy import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
 
 st.set_page_config(page_title="المخرج السينمائي الذكي", page_icon="🎬", layout="wide")
 
@@ -141,7 +146,6 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
 
                     asyncio.run(generate_audios())
 
-                    # حساب المدة الإجمالية بأمان
                     total_duration = sum(x["duration"] for x in audio_items)
                     MAX_PART_DURATION = 600.0  # 10 دقائق كحد أقصى لكل جزء
                     num_parts = math.ceil(total_duration / MAX_PART_DURATION) if total_duration > 0 else 1
@@ -190,12 +194,19 @@ if st.button("🚀 بدء تحليل وإنشاء الفيديوهات"):
                                         temp_files.append(generated_file)
 
                             if image_to_use and os.path.exists(image_to_use):
-                                clip = ImageClip(image_to_use).set_duration(duration)
-                                clip = clip.resize(height=target_h)
+                                # دعم دالتي التكبير/التصغير بحسب إصدار moviepy
+                                try:
+                                    clip = ImageClip(image_to_use).with_duration(duration).resized(height=target_h)
+                                except AttributeError:
+                                    clip = ImageClip(image_to_use).set_duration(duration).resize(height=target_h)
                             else:
                                 clip = ColorClip(size=(target_w, target_h), color=(25, 25, 30), duration=duration)
 
-                            clip = clip.set_audio(audio_clip)
+                            try:
+                                clip = clip.with_audio(audio_clip)
+                            except AttributeError:
+                                clip = clip.set_audio(audio_clip)
+                                
                             video_clips.append(clip)
 
                         final_video = concatenate_videoclips(video_clips, method="compose")
