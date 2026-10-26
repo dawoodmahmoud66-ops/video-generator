@@ -46,7 +46,7 @@ with col2:
 
     st.divider()
     st.header("📸 صور الشخصيات (اختياري)")
-    st.info("💡 يمكنك رفع صور محددة للشخصيات (مثل: `الشيخ عبدالحميد.jpg` أو `الأم.png`) لتركيبها مباشرة في المشاهد.")
+    st.info("💡 يمكنك رفع صور محددة للشخصيات (مثل: `الشيخ عبدالحميد.jpg` أو `الأم.png` أو `راوي.jpg`) لتركيبها مباشرة.")
     uploaded_files = st.file_uploader("ارفع صور الشخصيات هنا:", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
     
     images_dict = {}
@@ -67,15 +67,12 @@ with col1:
 
 def create_dramatic_background(speaker_name, text_snippet, filename, width, height):
     """توليد خلفية درامية معبرة محلياً تمنع ظهور أي شاشة سوداء نهائياً"""
-    # تدرج ألوان سينمائي داكن
     img = Image.new('RGB', (width, height), color=(25, 30, 42))
     draw = ImageDraw.Draw(img)
     
-    # إطار درامي ذهبي سينمائي
     margin = int(width * 0.05)
     draw.rectangle([margin, margin, width - margin, height - margin], outline=(190, 150, 90), width=4)
     
-    # دائرة رمزية تمثل ملامح المشهد
     center_x, center_y = width // 2, height // 3
     radius = int(width * 0.25)
     draw.ellipse([center_x - radius, center_y - radius, center_x + radius, center_y + radius], fill=(40, 50, 70), outline=(190, 150, 90), width=2)
@@ -86,7 +83,6 @@ def create_dramatic_background(speaker_name, text_snippet, filename, width, heig
 def generate_ai_image(prompt_text, file_filename, width, height):
     """محرك جلب صور المشاهد التلقائي والمستقر للسيرفرات السحابية"""
     try:
-        # محرك صور درامية سريع ومستقر لتفادي مهلة الاتصال
         seed_value = abs(hash(prompt_text)) % 10000
         image_url = f"https://picsum.photos/seed/{seed_value}/{width}/{height}"
         
@@ -98,7 +94,6 @@ def generate_ai_image(prompt_text, file_filename, width, height):
     except Exception as e:
         print(f"Error fetching image: {e}")
     
-    # في حال التأخير يتم استدعاء المولد الدرامي المحلي
     return create_dramatic_background(prompt_text, prompt_text, file_filename, width, height)
 
 def normalize_text(text):
@@ -117,6 +112,8 @@ def parse_script_dialogues(raw_text, img_map):
         r'^مونتاج', r'^ملاحظة', r'^يتبع', r'^النوع:', r'^الحلقة:', r'^المسلسل'
     ]
 
+    last_matched_img = None
+
     for line in lines:
         line_str = line.strip()
         if not line_str or line_str.startswith("---") or line_str.startswith("-"):
@@ -125,7 +122,7 @@ def parse_script_dialogues(raw_text, img_map):
         if any(re.search(pat, line_str, re.IGNORECASE) for pat in IGNORE_PATTERNS):
             continue
 
-        voice = "ar-EG-ShakirNeural"  # صوت ذكوري درامي
+        voice = "ar-EG-ShakirNeural"
         speaker_name = "راوي"
 
         if ":" in line_str or "：" in line_str:
@@ -139,15 +136,20 @@ def parse_script_dialogues(raw_text, img_map):
         if any(w in combined_context for w in ["الأم", "أم", "هند", "سارة", "مريم", "ماما", "زوجة", "أنثى"]):
             voice = "ar-EG-SalmaNeural"
 
+        # مطابقة اسم المتحدث مع الصور المرفوعة
         selected_image = None
         norm_speaker = normalize_text(speaker_name)
-        norm_context = normalize_text(combined_context)
 
         for img_name, img_path in img_map.items():
             norm_img = normalize_text(img_name)
-            if norm_img in norm_speaker or norm_img in norm_context or norm_speaker in norm_img:
+            if norm_img in norm_speaker or norm_speaker in norm_img:
                 selected_image = img_path
+                last_matched_img = img_path
                 break
+
+        # إذا لم نجد صورة خاصة بالراوي، يتم استخدام صورة آخر شخصية تحدثت
+        if not selected_image:
+            selected_image = last_matched_img
 
         if clean_text:
             dialogues.append({
@@ -192,7 +194,7 @@ if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
                     asyncio.run(generate_audios())
 
                     total_duration = sum(x["duration"] for x in audio_items)
-                    MAX_PART_DURATION = 600.0  # تقسيم الفيديوهات كحد أقصى 10 دقائق لكل فيديو
+                    MAX_PART_DURATION = 600.0
                     num_parts = math.ceil(total_duration / MAX_PART_DURATION) if total_duration > 0 else 1
 
                     total_mins = round(total_duration / 60, 1)
@@ -237,8 +239,6 @@ if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
                             if image_to_use and os.path.exists(image_to_use):
                                 try:
                                     img_clip = ImageClip(image_to_use).with_duration(duration)
-                                    # إضافة حركة زوم ديناميكية متغيرة لإعطاء تأثير الكاميرا الحية (Dramatic Pan/Zoom)
-                                    # تمايل بين الزوم للداخل والزوم للخارج
                                     zoom_factor = 0.06 if idx % 2 == 0 else -0.04
                                     clip = img_clip.resized(lambda t: 1 + zoom_factor * (t / duration)).resized(height=target_h)
                                 except Exception:
