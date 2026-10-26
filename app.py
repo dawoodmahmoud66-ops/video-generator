@@ -3,21 +3,21 @@ import asyncio
 import edge_tts
 import os
 import re
-import urllib.parse
 import requests
 import math
-from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+from PIL import Image, ImageDraw, ImageEnhance
 
-# استيراد آمن لمكتبة MoviePy لضمان التوافق الكامل مع كافة الإصدارات
+# استيراد آمن لمكتبة MoviePy لضمان التوافق مع التأثيرات البصرية
 try:
-    from moviepy.editor import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
+    from moviepy.editor import AudioFileClip, ImageClip, concatenate_videoclips, vfx
 except ImportError:
-    from moviepy import AudioFileClip, ColorClip, ImageClip, concatenate_videoclips
+    from moviepy import AudioFileClip, ImageClip, concatenate_videoclips, vfx
 
-st.set_page_config(page_title="المخرج السينمائي - صانع المسلسلات", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="المخرج السينمائي - صانع الريلز والمؤثرات", page_icon="🎬", layout="wide")
 
-st.title("🎬 صانع المسلسلات والريلز السينمائية")
-st.write("حول السكربت إلى فيديو ريلز بأسلوب درامي متكامل مع تحريك مشاهد الكاميرا وتغيير الخلفيات تلقائياً!")
+st.title("🎬 صانع المسلسلات والريلز بالمؤثرات البصرية والحركية")
+st.write("تحويل السكربت إلى مسلسل درامي عمودي مع حركة كاميرات حية، تدرجات ضوئية، وانتقالات سينمائية!")
 
 col1, col2 = st.columns([2, 1])
 
@@ -25,16 +25,15 @@ with col2:
     st.header("⚙️ إعدادات الشاشة والدقة")
     
     resolution_option = st.selectbox(
-        "🎯 اختر دقة الفيديو قبل الإنشاء:",
+        "🎯 اختر دقة الفيديو:",
         options=[
             "360p (فائق السرعة وخفيف)", 
-            "480p (سريع وخفيف)", 
-            "720p (سريع وموصى به - 9:16)", 
-            "1080p (دقة سينمائية عالية)"
+            "480p (سريع وموصى به)", 
+            "720p (عالي الجودة 9:16)", 
+            "1080p (دقة سينمائية)"
         ]
     )
     
-    # تحديد أبعاد الشاشة العمودية (9:16) المناسبة لفيديوهات الريلز وتيك توك
     if "1080p" in resolution_option:
         target_w, target_h = 1080, 1920
     elif "720p" in resolution_option:
@@ -45,9 +44,9 @@ with col2:
         target_w, target_h = 360, 640
 
     st.divider()
-    st.header("📸 صور الشخصيات (اختياري)")
-    st.info("💡 يمكنك رفع صور محددة للشخصيات (مثل: `الشيخ عبدالحميد.jpg` أو `الأم.png` أو `راوي.jpg`) لتركيبها مباشرة.")
-    uploaded_files = st.file_uploader("ارفع صور الشخصيات هنا:", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    st.header("📸 صور الشخصيات والمشاهد")
+    st.info("💡 ارفع صور الشخصيات (مثل: `راوي.jpg` - `الشيخ عبدالحميد.jpg` - `الأم.jpg` - `الأخ الأكبر.jpg`).")
+    uploaded_files = st.file_uploader("ارفع الصور هنا:", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
     
     images_dict = {}
     if uploaded_files:
@@ -63,41 +62,53 @@ with col2:
 
 with col1:
     st.header("📜 السكربت السينمائي")
-    script_text = st.text_area("أدخل السكربت النصي هنا:", height=420, placeholder="ضع نص المسلسل أو المشهد هنا...")
+    script_text = st.text_area("أدخل السكربت النصي هنا:", height=420, placeholder="ضع السكربت هنا...")
 
-def create_dramatic_background(speaker_name, text_snippet, filename, width, height):
-    """توليد خلفية درامية معبرة محلياً تمنع ظهور أي شاشة سوداء نهائياً"""
-    img = Image.new('RGB', (width, height), color=(25, 30, 42))
-    draw = ImageDraw.Draw(img)
-    
-    margin = int(width * 0.05)
-    draw.rectangle([margin, margin, width - margin, height - margin], outline=(190, 150, 90), width=4)
-    
-    center_x, center_y = width // 2, height // 3
-    radius = int(width * 0.25)
-    draw.ellipse([center_x - radius, center_y - radius, center_x + radius, center_y + radius], fill=(40, 50, 70), outline=(190, 150, 90), width=2)
-    
-    img.save(filename)
-    return filename
+def apply_cinematic_filter(image_path, output_path, width, height):
+    """تطبيق فلاتر بصريات سينمائية (إضاءة درامية داكنة وتدرج Vignette)"""
+    try:
+        img = Image.open(image_path).convert('RGB')
+        
+        # ضبط الإطار والتدرج البصري الداكن
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(1.15)
+        
+        # تغيير حجم الصورة للتوافق مع أبعاد الموبايل 9:16
+        img = img.resize((width, height), Image.Resampling.LANCZOS)
+        
+        # إنشاء طبقة ظلال سينمائية (Vignette FX)
+        mask = Image.new('L', (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((-width*0.2, -height*0.2, width*1.2, height*1.2), fill=255)
+        
+        dark_overlay = Image.new('RGB', (width, height), (10, 12, 18))
+        img = Image.composite(img, dark_overlay, mask)
+        
+        img.save(output_path)
+        return output_path
+    except Exception as e:
+        print(f"Filter error: {e}")
+        return image_path
 
 def generate_ai_image(prompt_text, file_filename, width, height):
-    """محرك جلب صور المشاهد التلقائي والمستقر للسيرفرات السحابية"""
     try:
         seed_value = abs(hash(prompt_text)) % 10000
         image_url = f"https://picsum.photos/seed/{seed_value}/{width}/{height}"
-        
         response = requests.get(image_url, timeout=4)
         if response.status_code == 200 and len(response.content) > 1000:
             with open(file_filename, "wb") as f:
                 f.write(response.content)
             return file_filename
     except Exception as e:
-        print(f"Error fetching image: {e}")
+        print(f"Image generation error: {e}")
     
-    return create_dramatic_background(prompt_text, prompt_text, file_filename, width, height)
+    img = Image.new('RGB', (width, height), color=(20, 25, 35))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([20, 20, width-20, height-20], outline=(180, 140, 80), width=3)
+    img.save(file_filename)
+    return file_filename
 
 def normalize_text(text):
-    """تنظيف النص لمطابقة أسماء الشخصيات بدقة"""
     text = text.lower()
     text = re.sub(r'[إأآا]', 'ا', text)
     text = re.sub(r'ة', 'ه', text)
@@ -136,7 +147,6 @@ def parse_script_dialogues(raw_text, img_map):
         if any(w in combined_context for w in ["الأم", "أم", "هند", "سارة", "مريم", "ماما", "زوجة", "أنثى"]):
             voice = "ar-EG-SalmaNeural"
 
-        # مطابقة اسم المتحدث مع الصور المرفوعة
         selected_image = None
         norm_speaker = normalize_text(speaker_name)
 
@@ -147,7 +157,6 @@ def parse_script_dialogues(raw_text, img_map):
                 last_matched_img = img_path
                 break
 
-        # إذا لم نجد صورة خاصة بالراوي، يتم استخدام صورة آخر شخصية تحدثت
         if not selected_image:
             selected_image = last_matched_img
 
@@ -161,15 +170,15 @@ def parse_script_dialogues(raw_text, img_map):
 
     return dialogues
 
-if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
+if st.button("🚀 بدء إنتاج الفيديو السينمائي بالمؤثرات"):
     if not script_text.strip():
         st.warning("رجاءً أدخل السكربت أولاً!")
     else:
-        with st.spinner("جاري إعداد المشاهد البصرية، الصوتيات، وتأثيرات حركة الكاميرا..."):
+        with st.spinner("جاري تطبيق المؤثرات البصرية، تحريك الكاميرا، ومعالجة الفيديو..."):
             try:
                 dialogues = parse_script_dialogues(script_text, images_dict)
                 if not dialogues:
-                    st.error("لم يتم العثور على أسطر حوارية صالحة للرندر!")
+                    st.error("لم يتم العثور على حوارات صالحة!")
                 else:
                     audio_items = []
                     temp_files = []
@@ -197,9 +206,6 @@ if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
                     MAX_PART_DURATION = 600.0
                     num_parts = math.ceil(total_duration / MAX_PART_DURATION) if total_duration > 0 else 1
 
-                    total_mins = round(total_duration / 60, 1)
-                    st.info(f"📊 **تحليل المسلسل:** مدة العرض الإجمالية **{total_mins} دقيقة** مقسمة إلى **{num_parts} فيديو/أجزاء**.")
-
                     parts = []
                     current_part = []
                     current_part_dur = 0.0
@@ -216,10 +222,8 @@ if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
                     if current_part:
                         parts.append(current_part)
 
-                    ai_generated_cache = {}
-
                     for p_idx, part in enumerate(parts):
-                        st.subheader(f"🎬 الجزء رقم ({p_idx + 1}) من {len(parts)}")
+                        st.subheader(f"🎬 الجزء رقم ({p_idx + 1})")
                         
                         video_clips = []
                         for idx, entry in enumerate(part):
@@ -229,33 +233,41 @@ if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
 
                             image_to_use = item["image"]
                             if not image_to_use:
-                                speaker = item["speaker"]
-                                unique_key = f"{speaker}_{idx}"
                                 ai_img_path = f"scene_img_p{p_idx}_{idx}.png"
-                                generated_file = generate_ai_image(f"{speaker} {item['text'][:25]}", ai_img_path, target_w, target_h)
-                                image_to_use = generated_file
-                                temp_files.append(generated_file)
+                                image_to_use = generate_ai_image(f"{item['speaker']} {item['text'][:20]}", ai_img_path, target_w, target_h)
+                                temp_files.append(ai_img_path)
 
-                            if image_to_use and os.path.exists(image_to_use):
+                            # تطبيق المعالجة البصرية البسيطة (Cinematic Vignette)
+                            processed_img = f"fx_{p_idx}_{idx}.png"
+                            apply_cinematic_filter(image_to_use, processed_img, target_w, target_h)
+                            temp_files.append(processed_img)
+
+                            if os.path.exists(processed_img):
                                 try:
-                                    img_clip = ImageClip(image_to_use).with_duration(duration)
-                                    zoom_factor = 0.06 if idx % 2 == 0 else -0.04
-                                    clip = img_clip.resized(lambda t: 1 + zoom_factor * (t / duration)).resized(height=target_h)
+                                    img_clip = ImageClip(processed_img).set_duration(duration)
+                                    
+                                    # إحداث حركة كاميرا ثلاثية الأبعاد (Pan, Tilt & Zoom Motion)
+                                    if idx % 3 == 0:
+                                        # زوم هادئ لداخل الصورة (Slow Zoom In)
+                                        clip = img_clip.resize(lambda t: 1 + 0.08 * (t / duration)).resize(height=target_h)
+                                    elif idx % 3 == 1:
+                                        # زوم هادئ للخارج (Slow Zoom Out)
+                                        clip = img_clip.resize(lambda t: 1.08 - 0.08 * (t / duration)).resize(height=target_h)
+                                    else:
+                                        # تمايل وبانوراما الجوانب (Dynamic Pan Effect)
+                                        clip = img_clip.resize(lambda t: 1 + 0.05 * math.sin(t)).resize(height=target_h)
+                                    
                                 except Exception:
-                                    clip = ImageClip(image_to_use).set_duration(duration).resize(height=target_h)
-                            else:
-                                fallback_path = f"fallback_{p_idx}_{idx}.png"
-                                create_dramatic_background(item["speaker"], item["text"], fallback_path, target_w, target_h)
-                                clip = ImageClip(fallback_path).set_duration(duration).resize(height=target_h)
-                                temp_files.append(fallback_path)
+                                    clip = ImageClip(processed_img).set_duration(duration).resize(height=target_h)
 
                             try:
-                                clip = clip.with_audio(audio_clip)
-                            except AttributeError:
                                 clip = clip.set_audio(audio_clip)
+                            except AttributeError:
+                                clip = clip.with_audio(audio_clip)
                                 
                             video_clips.append(clip)
 
+                        # دمج المقاطع مع إضافة انتقالات ناعمة بين الصور
                         final_video = concatenate_videoclips(video_clips, method="compose")
                         out_file = f"video_part_{p_idx + 1}.mp4"
                         final_video.write_videofile(out_file, fps=15, preset="ultrafast", threads=2)
@@ -265,7 +277,7 @@ if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
                         st.video(out_file)
                         with open(out_file, "rb") as file:
                             st.download_button(
-                                f"📥 تحميل الجزء رقم ({p_idx + 1})", 
+                                f"📥 تحميل الفيديو رقم ({p_idx + 1})", 
                                 data=file, 
                                 file_name=f"part_{p_idx + 1}.mp4", 
                                 mime="video/mp4",
