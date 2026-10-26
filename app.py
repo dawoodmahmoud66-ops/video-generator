@@ -238,6 +238,7 @@ if st.button("🚀 بدء إنتاج المسلسل السينمائي"):
                                 try:
                                     img_clip = ImageClip(image_to_use).with_duration(duration)
                                     # إضافة حركة زوم ديناميكية متغيرة لإعطاء تأثير الكاميرا الحية (Dramatic Pan/Zoom)
+                                    # تمايل بين الزوم للداخل والزوم للخارج
                                     zoom_factor = 0.06 if idx % 2 == 0 else -0.04
                                     clip = img_clip.resized(lambda t: 1 + zoom_factor * (t / duration)).resized(height=target_h)
                                 except Exception:
