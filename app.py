@@ -2,34 +2,36 @@ import streamlit as st
 import pandas as pd
 import pypdf
 import io
-import os
 
-st.set_page_config(page_title="حصر ملفات PDF وحساب الصفحات", page_icon="📊", layout="wide")
+st.set_page_config(page_title="حصر ملفات PDF وحساب الصفحات السريع", page_icon="⚡", layout="wide")
 
-st.title("📊 أداة حصر ملفات PDF واستخراج البيانات إلى Excel")
-st.write("اختر الفولدر مباشرة من جهازك، وسيتم قراءة جميع ملفات الـ PDF داخله وحساب عدد صفحاتها تلقائياً!")
+st.title("⚡ أداة حصر ملفات PDF السريعة واستخراج البيانات إلى Excel")
+st.write("رفع المجلد وقراءة الصفحات بسرعة فائقة بدون تهنيج أو بطء في التحميل.")
 
 st.divider()
 
-# ميزة رفع المجلد بالكامل دون الحاجة للدخول لداخله أو ضغطه
 uploaded_files = st.file_uploader(
-    "📁 اختر الفولدر من جهازك مباشرة (قم بتحديد المجلد واضغط Upload):", 
+    "📁 اختر الفولدر مباشرة من جهازك (يمكنك رفع ملفات مجتمعة حتى 1 جيجابايت):", 
     type=["pdf"], 
     accept_multiple_files=True
 )
 
 if uploaded_files:
-    st.info(f"📁 تم العثور على {len(uploaded_files)} ملف PDF داخل المجلد.")
+    total_files = len(uploaded_files)
+    st.info(f"📁 تم العثور على {total_files} ملف PDF. جاري الحصر السريع...")
     
     pdf_data = []
     total_pages = 0
     
+    # شريط تقدم خفيف وسريع
     progress_bar = st.progress(0)
+    status_text = st.empty()
     
     for idx, file in enumerate(uploaded_files, start=1):
         try:
-            # قراءة ملف الـ PDF من الذاكرة وحساب صفحاته
-            pdf_reader = pypdf.PdfReader(file)
+            # استخدام io.BytesIO لتسريع قراءة الملف مباشرة دون حفظه
+            file_stream = io.BytesIO(file.read())
+            pdf_reader = pypdf.PdfReader(file_stream)
             num_pages = len(pdf_reader.pages)
             total_pages += num_pages
             
@@ -38,23 +40,27 @@ if uploaded_files:
                 "اسم الملف (رقم الملف)": file.name,
                 "عدد الصفحات": num_pages
             })
-        except Exception as e:
+        except Exception:
             pdf_data.append({
                 "م": idx,
                 "اسم الملف (رقم الملف)": file.name,
-                "عدد الصفحات": "خطأ في قراءة الملف"
+                "عدد الصفحات": "خطأ في القراءة"
             })
-            
-        progress_bar.progress(idx / len(uploaded_files))
         
-    st.success(f"✅ تم تحليل المجلد بنجاح! إجمالي عدد الصفحات: **{total_pages} صفحة**")
+        # تحديث شريط التقدم كل بضع ملفات لتقليل الضغط
+        if idx % 5 == 0 or idx == total_files:
+            progress_bar.progress(idx / total_files)
+            status_text.text(f"تمت معالجة {idx} من أصل {total_files} ملف...")
+            
+    status_text.empty()
+    st.success(f"✅ تم الانتهاء بنجاح! إجمالي عدد الصفحات: **{total_pages} صفحة**")
     
     df = pd.DataFrame(pdf_data)
     
-    st.subheader("📋 معاينة جدول البيانات:")
+    st.subheader("📋 معاينة بيانات الملفات:")
     st.dataframe(df, use_container_width=True)
 
-    # إنشاء شيت الإكسيل للتحميل
+    # إنشاء شيت Excel للتحميل المباشر
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='حصر الـ PDF')
